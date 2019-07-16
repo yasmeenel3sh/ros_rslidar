@@ -14,7 +14,8 @@
  */
 #include "rsdriver.h"
 #include <rslidar_msgs/rslidarScan.h>
-
+int gprmc_date = 110719;
+int gprmc_time = 205101;
 namespace rslidar_driver
 {
   static const unsigned int POINTS_ONE_CHANNEL_PER_SECOND = 20000;
@@ -55,6 +56,8 @@ rslidarDriver::rslidarDriver(ros::NodeHandle node, ros::NodeHandle private_nh)
 
   private_nh.param("rpm", config_.rpm, 600.0);
   double frequency = (config_.rpm / 60.0);  // expected Hz rate
+  ROS_INFO_STREAM("RPM "<<config_.rpm);
+  
 
   // default number of packets for each scan is a single revolution
   // (fractions rounded up)
@@ -138,11 +141,12 @@ rslidarDriver::rslidarDriver(ros::NodeHandle node, ros::NodeHandle private_nh)
   difop_thread_ = boost::shared_ptr<boost::thread>(new boost::thread(boost::bind(&rslidarDriver::difopPoll, this)));
 
   private_nh.param("time_synchronization", time_synchronization_, false);
+  private_nh.param("skippackets_num",skippackets_num_,std::string("skippackets_num"));
 
   if (time_synchronization_)
   {
     output_sync_ = node.advertise<sensor_msgs::TimeReference>("sync_header", 1);
-    skip_num_sub_ = node.subscribe<std_msgs::Int32>("skippackets_num", 1, &rslidarDriver::skipNumCallback,
+    skip_num_sub_ = node.subscribe<std_msgs::Int32>(skippackets_num_, 1, &rslidarDriver::skipNumCallback,
                                                     (rslidarDriver*)this, ros::TransportHints().tcpNoDelay(true));
   }
 }
@@ -154,7 +158,6 @@ rslidarDriver::rslidarDriver(ros::NodeHandle node, ros::NodeHandle private_nh)
 bool rslidarDriver::poll(void)
 {  // Allocate a new shared pointer for zero-copy sharing with other nodelets.
   rslidar_msgs::rslidarScanPtr scan(new rslidar_msgs::rslidarScan);
-
   // Since the rslidar delivers data at a very high rate, keep
   // reading and publishing scans as fast as possible.
   if (config_.cut_angle >= 0)  // Cut at specific angle feature enabled
@@ -227,7 +230,6 @@ bool rslidarDriver::poll(void)
       }
       --skip_num_;
     }
-
     for (int i = 0; i < config_.npackets; ++i)
     {
       while (true)
@@ -256,17 +258,65 @@ bool rslidarDriver::poll(void)
       stm.tm_hour = (int)pkt.data[23];
       stm.tm_min  = (int)pkt.data[24];
       stm.tm_sec  = (int)pkt.data[25];
+      setenv("TZ","UTC",1);
+      tzset();
       double stamp_double = mktime(&stm) + 0.001 * (256 * pkt.data[26] + pkt.data[27]) +
                             0.000001 * (256 * pkt.data[28] + pkt.data[29]);
-      sync_header.header.stamp = ros::Time(stamp_double);
+
+      //checking the timestamp start with 9
+      if(((int)stamp_double/100000000)==9){
+      
+      memset(&stm, 0, sizeof(stm));
+      stm.tm_year = (gprmc_date%100) + 100;
+      stm.tm_mon  = ((gprmc_date/100)%100) - 1;
+      stm.tm_mday = ((gprmc_date/10000));
+      stm.tm_hour =((gprmc_time/10000)); 
+      stm.tm_min  = ((gprmc_time/100)%100);
+      stm.tm_sec  = (gprmc_time%100);
+      setenv("TZ","UTC",1);
+      tzset();
+      stamp_double = mktime(&stm) + 0.001 * (256 * pkt.data[26] + pkt.data[27]) +
+                            0.000001 * (256 * pkt.data[28] + pkt.data[29]);
+      }
+     sync_header.header.stamp = ros::Time(stamp_double);
 
       output_sync_.publish(sync_header);
+      pkt = scan->packets.back();
+      memset(&stm, 0, sizeof(stm));
+      stm.tm_year = (int)pkt.data[20] + 100;
+      stm.tm_mon  = (int)pkt.data[21] - 1;
+      stm.tm_mday = (int)pkt.data[22];
+      stm.tm_hour = (int)pkt.data[23];
+      stm.tm_min  = (int)pkt.data[24];
+      stm.tm_sec  = (int)pkt.data[25];
+      setenv("TZ","UTC",1);
+      tzset();
+      stamp_double = mktime(&stm) + 0.001 * (256 * pkt.data[26] + pkt.data[27]) +
+                            0.000001 * (256 * pkt.data[28] + pkt.data[29]);
+      if(((int)stamp_double/100000000)==9){
+      
+      memset(&stm, 0, sizeof(stm));
+      stm.tm_year = (gprmc_date%100) + 100;
+      stm.tm_mon  = ((gprmc_date/100)%100) - 1;
+      stm.tm_mday = ((gprmc_date/10000));
+      stm.tm_hour =((gprmc_time/10000)); 
+      stm.tm_min  = ((gprmc_time/100)%100);
+      stm.tm_sec  = (gprmc_time%100);
+      setenv("TZ","UTC",1);
+      tzset();
+      stamp_double = mktime(&stm) + 0.001 * (256 * pkt.data[26] + pkt.data[27]) +
+                            0.000001 * (256 * pkt.data[28] + pkt.data[29]);
+      }
+     scan->header.stamp = ros::Time(stamp_double);
+
+    }else{
+        scan->header.stamp = scan->packets.back().stamp;
+
     }
   }
 
   // publish message using time of last packet read
   ROS_DEBUG("Publishing a full rslidar scan.");
-  scan->header.stamp = scan->packets.back().stamp;
   scan->header.frame_id = config_.frame_id;
   msop_output_.publish(scan);
 
@@ -292,6 +342,25 @@ void rslidarDriver::difopPoll(void)
       ROS_DEBUG("Publishing a difop data.");
       *difop_packet_ptr = difop_packet_msg;
       difop_output_.publish(difop_packet_ptr);
+   //   ROS_INFO_STREAM((int)difop_packet_ptr->data[357]);
+      int j=0;
+      gprmc_date=0;
+      gprmc_time=0;
+      unsigned char mask =0x0F;
+      for( int i= 5;i >=0 ; i-- ){
+          int index_date= 407+j;
+          int index_time= 389+j;
+          int x = (int)(((*difop_packet_ptr).data[index_date]) & mask);
+          int y=(int)(((*difop_packet_ptr).data[index_time]) & mask);
+
+          gprmc_date= gprmc_date + (x * (pow(10,i)));
+          gprmc_time= gprmc_time + (y * (pow(10,i)));
+          j++; 
+      }
+
+      //ROS_INFO_STREAM("Date" << gprmc_date);
+      //ROS_INFO_STREAM("Time" << gprmc_time);
+
     }
     if (rc < 0)
       return;  // end of file reached?

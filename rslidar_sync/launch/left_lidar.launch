@@ -1,13 +1,13 @@
 <launch>
   <group ns="left">
     <arg name="lidar_model" default="RS16" />
-    <arg name="lidar_param_path" default="/home/robosense/p3_ws/src/usr_config/lidar_param/left_lidar" />
+    <arg name="lidar_param_path" default="$(find rslidar_pointcloud)/data/rs_lidar_16/" />
 
     <node  name="rslidar_node" pkg="rslidar_driver" type="rslidar_node" output="screen" >
       <param name="model" value="$(arg lidar_model)"/>
-      <param name="device_ip" value="192.168.1.201"/>
-      <param name="msop_port" value="2011"/>
-      <param name="difop_port" value="2012"/>
+      <param name="device_ip" value="192.168.1.202"/>
+      <param name="msop_port" value="6702"/>
+      <param name="difop_port" value="7788"/>
       <param name="time_synchronization" value="true"/>
     </node>
 

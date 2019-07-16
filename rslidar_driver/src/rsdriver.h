@@ -82,6 +82,8 @@ private:
 
   // add for time synchronization
   bool time_synchronization_;
+  std::string skippackets_num_;  ///<used to set the skip packet topic name
+
   uint32_t skip_num_;
   ros::Subscriber skip_num_sub_;
 };

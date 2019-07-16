@@ -1,7 +1,7 @@
 <launch>
   <arg name="model" default="RS16" />
-  <arg name="device_ip" default="192.168.1.200" />
-  <arg name="msop_port" default="6699" />
+  <arg name="device_ip" default="192.168.1.202" />
+  <arg name="msop_port" default="6702" />
   <arg name="difop_port" default="7788" />
   <arg name="lidar_param_path" default="$(find rslidar_pointcloud)/data/rs_lidar_16/"/>
 
@@ -10,6 +10,7 @@
     <param name="device_ip" value="$(arg device_ip)" />
     <param name="msop_port" value="$(arg msop_port)" />
     <param name="difop_port" value="$(arg difop_port)"/>
+     <param name="time_synchronization" value="true"/>
     <!--param name="pcap" value="path_to_pcap"/-->
   </node>
 
